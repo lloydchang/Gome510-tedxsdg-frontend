@@ -6,6 +6,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ChevronDown, ChevronUp, Edit2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { addSpanAttributes } from '../../../lib/observability';
 
 interface SDG {
   id: string;
@@ -60,6 +61,11 @@ export default function InspirationPage() {
     setSelectedSDG(sdg);
     setSdgSectionCollapsed(true);
     setSummaries([]); // Clear previous summaries
+    addSpanAttributes({
+      'app.sdg.id': sdg.id,
+      'app.sdg.name': sdg.name,
+      'app.interaction': 'sdg_selection'
+    });
     try {
       setLoading(true);
       // First API call
@@ -100,6 +106,10 @@ export default function InspirationPage() {
           ideaTitle: data2.ideaTitle,
         },
       ]);
+      addSpanAttributes({
+        'app.ted_talk.url': firstTedTalk.url,
+        'app.idea.generated': true
+      });
 
       setLoading(false);
     } catch (error) {
@@ -134,6 +144,13 @@ export default function InspirationPage() {
     const existingIdeas = JSON.parse(localStorage.getItem('ideas') || '[]');
     const updatedIdeas = [...existingIdeas, newIdea];
     localStorage.setItem('ideas', JSON.stringify(updatedIdeas));
+
+    addSpanAttributes({
+      'app.idea.confirmed': true,
+      'app.idea.title': newIdea.ideaTitle,
+      'app.idea.sdg': newIdea.sdg || 'unknown',
+      'app.interaction': 'idea_confirmation'
+    });
 
     // get idea JSON
     const request3 = {
@@ -177,9 +194,8 @@ export default function InspirationPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div
-        className={`transition-all duration-300 ${
-          sdgSectionCollapsed ? 'h-0 overflow-hidden' : 'h-auto'
-        }`}
+        className={`transition-all duration-300 ${sdgSectionCollapsed ? 'h-0 overflow-hidden' : 'h-auto'
+          }`}
       >
         <h1 className="text-3xl font-bold mb-6">
           Choose an SDG for Inspiration

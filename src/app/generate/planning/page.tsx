@@ -4,6 +4,7 @@
 import { marked } from "marked";
 import React, { useState, useEffect } from "react";
 // import { fetchLLMResults } from "@/lib/utils";
+import { addSpanAttributes } from "../../../lib/observability";
 
 // Define a request object with default values
 const request = {
@@ -27,6 +28,7 @@ export default function PlanningPage() {
         // If we have cached results, use them
         setResults(JSON.parse(cachedResults));
         setLoading(false);
+        addSpanAttributes({ 'app.cache.hit': true, 'app.cache.key': 'planningResults' });
       } else {
         // If no cached results, make the API call
         try {
@@ -63,19 +65,25 @@ export default function PlanningPage() {
             body: grantData,
           });
 
+          addSpanAttributes({
+            'app.cache.hit': false,
+            'app.api.status': grantResponse.status,
+            'app.api.url': grantResponse.url
+          });
+
           // Check if the API response contains the markdown content
           if (grantData.businessPlanMarkdown) {
-            const markdownString = grantData.businessPlanMarkdown; 
-            setResults(markdownString); 
+            const markdownString = grantData.businessPlanMarkdown;
+            setResults(markdownString);
             localStorage.setItem("planningResults", JSON.stringify(markdownString));
             localStorage.setItem("grantResults", JSON.stringify(grantData));
             // setGrants(grantData); 
           } else {
             console.error("Error: Markdown content not found in API response");
             // Set an error message if markdown is not found
-            setResults("Error loading business plan. Please try again later."); 
+            setResults("Error loading business plan. Please try again later.");
           }
-          
+
           // Store the new results in local storage
           // localStorage.setItem("llmResults", JSON.stringify(newResults));
           // setResults(newResults);
@@ -112,7 +120,7 @@ export default function PlanningPage() {
   return (
     <div>
       <div className="mb-6">
-        <button 
+        <button
           onClick={() => setPlanCollapsed(!planCollapsed)}
           className="text-3xl font-bold w-full text-left flex justify-between items-center bg-gray-200 p-4 rounded-t"
         >
@@ -122,10 +130,10 @@ export default function PlanningPage() {
         {!planCollapsed && (
           <div className="bg-gray-100 shadow-md rounded-b px-8 pt-6 pb-8">
             {/* Check if 'results' is a string before rendering it as markdown */}
-            {typeof results === 'string' ? ( 
-              <div dangerouslySetInnerHTML={{ __html: formatApiResponse(results) }}></div> 
+            {typeof results === 'string' ? (
+              <div dangerouslySetInnerHTML={{ __html: formatApiResponse(results) }}></div>
             ) : (
-              <div>Error: Invalid data format for business plan.</div> 
+              <div>Error: Invalid data format for business plan.</div>
             )}
           </div>
         )}
@@ -136,8 +144,8 @@ export default function PlanningPage() {
       {/* {grants && (
         <div>
           <h2>Available Grants:</h2>
-          {/* ... Display grant details from 'grants' ... */} 
-        {/* </div>
+          {/* ... Display grant details from 'grants' ... */}
+      {/* </div>
       )} */}
     </div>
   );

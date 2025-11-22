@@ -2,9 +2,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import ReactMarkdown from 'react-markdown'; 
+import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm'; // Import remark-gfm for GitHub Flavored Markdown
 import jsPDF from "jspdf";
+import { addSpanAttributes } from "../../../lib/observability";
 
 export default function FundingPage() {
   const [investors, setInvestors] = useState<string>("");
@@ -33,6 +34,7 @@ export default function FundingPage() {
         setGrantProposal(JSON.parse(cachedGrantProposal));
         // setPitchText(JSON.parse(cachedPitchText)) 
         setLoading(false);
+        addSpanAttributes({ 'app.cache.hit': true, 'app.cache.key': 'fundingData' });
       } else {
         // If no cached results, make the API call
         try {
@@ -163,11 +165,12 @@ export default function FundingPage() {
 
   const handleGeneratePDF = () => {
     setGeneratingPDF(true);
+    addSpanAttributes({ 'app.pdf.generating': true });
     try {
       const doc = new jsPDF();
 
       // Split the content into lines
-      const lines = doc.splitTextToSize(grantProposal, 180);  
+      const lines = doc.splitTextToSize(grantProposal, 180);
 
       let y = 10;
       lines.forEach((line: string) => {
@@ -180,8 +183,10 @@ export default function FundingPage() {
       });
 
       doc.save("grant_proposal.pdf");
+      addSpanAttributes({ 'app.pdf.success': true, 'app.pdf.pages': lines.length / 40 }); // Approx pages
     } catch (error) {
       console.error("Error generating PDF:", error);
+      addSpanAttributes({ 'app.pdf.success': false, 'app.pdf.error': (error as Error).message });
       alert("Failed to generate PDF. Please try again.");
     } finally {
       setGeneratingPDF(false);
@@ -210,7 +215,7 @@ export default function FundingPage() {
   // Function to format the text from API
   const formatApiResponse = (text: string) => {
     // Remove leading and trailing double quotes
-    const trimmedText = text.replace(/^"|"$/g, ''); 
+    const trimmedText = text.replace(/^"|"$/g, '');
 
     // Decode escaped newlines to actual newlines
     const decodedText = trimmedText.replace(/\\n/g, '\n\n\n');
@@ -224,7 +229,7 @@ export default function FundingPage() {
     // Replace ==== with --- (or any other markdown horizontal rule character)
     const horizontalRuleFixed = boldedCitations.replace(
       /={4,}/g, // Match 4 or more equal signs
-      '---' 
+      '---'
     );
 
     return horizontalRuleFixed;
@@ -233,7 +238,7 @@ export default function FundingPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
-        <button 
+        <button
           onClick={() => toggleSection('investors')}
           className="text-3xl font-bold w-full text-left flex justify-between items-center bg-gray-200 p-4 rounded-t"
         >
@@ -243,17 +248,17 @@ export default function FundingPage() {
         {!investorsCollapsed && (
           <div className="bg-gray-100 shadow-md rounded-b px-8 pt-6 pb-8">
             {/* Render formatted investor text */}
-            <ReactMarkdown 
+            <ReactMarkdown
               remarkPlugins={[remarkGfm]} // Use remark-gfm for better Markdown support 
             >
               {formatApiResponse(investors)}
-            </ReactMarkdown> 
+            </ReactMarkdown>
           </div>
         )}
       </div>
 
       <div className="mb-6">
-        <button 
+        <button
           onClick={() => toggleSection('grants')}
           className="text-3xl font-bold w-full text-left flex justify-between items-center bg-gray-200 p-4 rounded-t"
         >
@@ -266,8 +271,8 @@ export default function FundingPage() {
             <ReactMarkdown
               remarkPlugins={[remarkGfm]} // Use remark-gfm for better Markdown support 
             >
-              {formatApiResponse(grants)} 
-            </ReactMarkdown> 
+              {formatApiResponse(grants)}
+            </ReactMarkdown>
           </div>
         )}
       </div>

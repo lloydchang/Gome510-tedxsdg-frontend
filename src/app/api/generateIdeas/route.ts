@@ -1,6 +1,7 @@
 // File: src/app/api/generateIdeas/route.ts
 import { NextResponse, NextRequest } from "next/server";
 import OpenAI from "openai";
+import { addSpanAttributes } from "../../../lib/observability";
 
 interface OpenAIResponse {
     choices: {
@@ -44,6 +45,12 @@ export async function POST(req: NextRequest) {
         console.log("Incoming data (generateIdeas):", data);
         console.log("Data types:", typeof data, typeof data.transcript, typeof data.sdg);
 
+        addSpanAttributes({
+            'app.request.has_transcript': !!data.transcript,
+            'app.request.transcript_length': data.transcript ? data.transcript.length : 0,
+            'app.request.sdg_raw': data.sdg
+        });
+
         if (!data || typeof data !== 'object' || !data.transcript || !data.sdg) {
             return NextResponse.json({ error: "Invalid input data. 'transcript' and 'sdg' are required." }, { status: 400 });
         }
@@ -73,7 +80,7 @@ Valid JSON Response Format:
   "idea": "string",
   "ideaTitle": "string"
 }
-        `; 
+        `;
 
         console.log("Prompt sent to Gemma:", systemPrompt);
 
@@ -86,18 +93,20 @@ Valid JSON Response Format:
                 messages: [{ role: "system", content: systemPrompt }]
             });
             console.log("Gemma API call via OpenRouter successful.");
+            addSpanAttributes({ 'app.ai.provider': 'openrouter', 'app.ai.model': 'google/gemma-3-27b-it:free' });
         } catch (openRouterError) {
             console.warn("OpenRouter Error (trying Cloudflare as fallback):", openRouterError);
             console.log("Trying Cloudflare Workers AI (OpenAI compatible) API as fallback...");
             completion = await openaiCloudflare.chat.completions.create({
-                model: "@cf/google/gemma-7b-it-lora", 
+                model: "@cf/google/gemma-7b-it-lora",
                 // CloudFlare AI worker doesn't seem to support system role messages, hence sending a user role message
-                messages: [{ role: "user", content: systemPrompt }] 
+                messages: [{ role: "user", content: systemPrompt }]
             });
             console.log("Cloudflare Workers AI API call successful.");
+            addSpanAttributes({ 'app.ai.provider': 'cloudflare', 'app.ai.model': '@cf/google/gemma-7b-it-lora' });
         }
 
-        return handleAIResponse(completion); 
+        return handleAIResponse(completion);
 
     } catch (outerError) {
         console.error("General Error:", outerError);
@@ -135,8 +144,8 @@ function handleAIResponse(completion: OpenAIResponse): NextResponse {
         } catch (cleanedParseError) {
             console.error("Parsing failed even after removing backticks:", cleanedParseError);
 
-            try { 
-                const regex = /{.*}/s; 
+            try {
+                const regex = /{.*}/s;
                 const match = content.match(regex);
 
                 if (match) {
