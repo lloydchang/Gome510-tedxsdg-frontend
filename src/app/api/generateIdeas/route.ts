@@ -82,7 +82,7 @@ Valid JSON Response Format:
         try {
             console.log("Trying to call Gemma API via OpenRouter first...");
             completion = await openaiRouter.chat.completions.create({
-                model: "google/gemma-2-9b-it:free",
+                model: "google/gemma-3-27b-it:free",
                 messages: [{ role: "system", content: systemPrompt }]
             });
             console.log("Gemma API call via OpenRouter successful.");
