@@ -9,7 +9,7 @@ module.exports = {
     if (!isServer) {
       config.plugins.push(
         new webpack.IgnorePlugin({
-          resourceRegExp: /require-in-the-middle|@opentelemetry\/instrumentation\/build\/esm\/platform\/node/,
+          resourceRegExp: /require-in-the-middle|@opentelemetry\/instrumentation\/build\/esm\/platform\/node|@opentelemetry\/exporter-jaeger|@opentelemetry\/winston-transport/,
         })
       );
     }

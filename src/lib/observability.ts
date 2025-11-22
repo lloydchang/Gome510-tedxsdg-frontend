@@ -1,4 +1,4 @@
-import { trace } from '@opentelemetry/api';
+import { trace, Span } from '@opentelemetry/api';
 
 /**
  * Adds attributes to the current active span, effectively creating a "wide event".
@@ -14,7 +14,7 @@ export function addSpanAttributes(attributes: Record<string, string | number | b
 /**
  * Creates a new span for a specific operation.
  */
-export function withSpan<T>(name: string, fn: (span: any) => Promise<T> | T): Promise<T> {
+export function withSpan<T>(name: string, fn: (span: Span) => Promise<T> | T): Promise<T> {
   const tracer = trace.getTracer('tedxsdg-frontend');
   return tracer.startActiveSpan(name, async (span) => {
     try {
