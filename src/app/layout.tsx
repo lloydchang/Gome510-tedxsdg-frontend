@@ -1,5 +1,5 @@
 // File: src/app/layout.tsx
-import Observability from "./components/observability";
+import ObservabilityWrapper from "./components/ObservabilityWrapper";
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -30,7 +30,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Observability />
+        <ObservabilityWrapper />
         {children}
       </body>
     </html>
