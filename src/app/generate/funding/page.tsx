@@ -67,7 +67,7 @@ export default function FundingPage() {
           console.debug("Grant Info Request Body:", requestPayload.body);
 
           const grantResponse = await fetch(
-            "https://ted-murex.vercel.app/grantInfo",
+            "https://budhrajaankita-ted.vercel.app/grantInfo",
             requestPayload
           );
 
@@ -91,7 +91,7 @@ export default function FundingPage() {
           console.debug("Grant Proposal Request Body:", requestPayload.body);
 
           const grantProposalResponse = await fetch(
-            "https://ted-murex.vercel.app/getGrantProposal",
+            "https://budhrajaankita-ted.vercel.app/getGrantProposal",
             requestPayload
           );
 
@@ -115,7 +115,7 @@ export default function FundingPage() {
           console.debug("Investors Request Body:", requestPayload.body);
 
           const investorResponse = await fetch(
-            "https://ted-murex.vercel.app/investors",
+            "https://budhrajaankita-ted.vercel.app/investors",
             requestPayload
           );
 
@@ -136,7 +136,7 @@ export default function FundingPage() {
 
           // Fetch pitch 
           // const pitchTextResponse = await fetch(
-          //   "https://ted-murex.vercel.app/generatePitchText",
+          //   "https://budhrajaankita-ted.vercel.app/generatePitchText",
           //   {
           //     method: "POST",
           //     headers: { "Content-Type": "application/json" },

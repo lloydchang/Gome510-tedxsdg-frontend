@@ -176,7 +176,7 @@ export default function InspirationPage() {
     };
     console.debug('API Request (business_plan_roadmap):', request4);
     const planningResponse = await fetch(
-      'https://ted-murex.vercel.app/business_plan_roadmap',
+      'https://budhrajaankita-ted.vercel.app/business_plan_roadmap',
       request4
     );
     console.debug(
