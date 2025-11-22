@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
         try {
             console.log("About to call Gemma API via OpenRouter...");
             completion = await openaiRouter.chat.completions.create({
-                model: "google/gemma-2-9b-it:free",
+                model: "google/gemma-3-27b-it:free",
                 messages: [
                     { role: "system", content: systemPrompt },
                     { role: "user", content: data }
