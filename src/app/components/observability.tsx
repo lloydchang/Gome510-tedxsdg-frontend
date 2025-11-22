@@ -21,9 +21,8 @@ export default function Observability() {
         const { getWebAutoInstrumentations } = await import("@opentelemetry/auto-instrumentations-web");
 
         sdkInstance = new HoneycombWebSDK({
-          endpoint: "/api/honeycomb-proxy",
-          debug: true,
-          serviceName: "[YOUR APPLICATION NAME HERE]",
+          apiKey: process.env.NEXT_PUBLIC_HONEYCOMB_API_KEY,
+          serviceName: process.env.NEXT_PUBLIC_OTEL_SERVICE_NAME || 'tedxsdg-frontend-web',
           instrumentations: [
             getWebAutoInstrumentations({
               "@opentelemetry/instrumentation-xml-http-request": configDefaults,

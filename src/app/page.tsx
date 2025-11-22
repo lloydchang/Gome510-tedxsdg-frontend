@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from "next/link";
 import { TrashIcon } from '@heroicons/react/24/solid';
+import { addSpanAttributes } from '../lib/observability';
 
 interface Idea {
   idea: string;
@@ -18,13 +19,25 @@ export default function Home() {
     const storedProjects = localStorage.getItem('ideas');
     if (storedProjects) {
       setProjects(JSON.parse(storedProjects));
+      addSpanAttributes({
+        'app.projects.count': JSON.parse(storedProjects).length,
+        'app.page': 'home'
+      });
+    } else {
+      addSpanAttributes({ 'app.projects.count': 0, 'app.page': 'home' });
     }
   }, []);
 
   const handleDeleteProject = (url: string) => {
     const updatedProjects = projects.filter((project) => project.url !== url);
     setProjects(updatedProjects);
+    setProjects(updatedProjects);
     localStorage.setItem('ideas', JSON.stringify(updatedProjects));
+    addSpanAttributes({
+      'app.project.deleted': true,
+      'app.project.deleted_url': url,
+      'app.projects.remaining': updatedProjects.length
+    });
   };
 
   return (
@@ -43,8 +56,8 @@ export default function Home() {
               <ul className="mb-8">
                 {projects.map((project) => (
                   <li key={project.url} className="mb-2 flex items-center justify-between">
-                    <Link 
-                      href={`/generate/planning`} 
+                    <Link
+                      href={`/generate/planning`}
                       className="text-blue-600 hover:underline"
                       onClick={() => {
                         localStorage.setItem('selectedIdea', JSON.stringify(project));
@@ -52,8 +65,8 @@ export default function Home() {
                     >
                       {project.ideaTitle}
                     </Link>
-                    <button 
-                      onClick={() => handleDeleteProject(project.url!)} 
+                    <button
+                      onClick={() => handleDeleteProject(project.url!)}
                       className="text-red-600 hover:text-red-800"
                     >
                       <TrashIcon className="h-5 w-5" />

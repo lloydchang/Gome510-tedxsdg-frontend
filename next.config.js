@@ -2,6 +2,9 @@
 const webpack = require("webpack");
 
 module.exports = {
+  experimental: {
+    instrumentationHook: true,
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.plugins.push(
