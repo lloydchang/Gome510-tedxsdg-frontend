@@ -13,6 +13,33 @@ module.exports = {
         })
       );
     }
+    
+    // Suppress OpenTelemetry warnings
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      {
+        module: /node_modules\/@opentelemetry/,
+      },
+      {
+        module: /node_modules\/@honeycombio/,
+      },
+      {
+        module: /node_modules\/require-in-the-middle/,
+      },
+      {
+        message: /Critical dependency: the request of a dependency is an expression/,
+      },
+      {
+        message: /Critical dependency: require function is used in a way in which dependencies cannot be statically extracted/,
+      },
+      {
+        message: /Module not found: Can't resolve '@opentelemetry\/exporter-jaeger'/,
+      },
+      {
+        message: /Module not found: Can't resolve '@opentelemetry\/winston-transport'/,
+      },
+    ];
+    
     return config;
   },
 };
