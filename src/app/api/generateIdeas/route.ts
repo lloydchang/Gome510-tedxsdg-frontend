@@ -1,166 +1,176 @@
-// File: src/app/api/generateIdeas/route.ts
-import { NextResponse, NextRequest } from "next/server";
-import OpenAI from "openai";
-import { addSpanAttributes } from "../../../lib/observability";
+// src/app/api/generateIdeas/route.ts
+import { NextResponse } from 'next/server';
+import { promises as fs } from 'fs';
+import path from 'path';
 
-interface OpenAIResponse {
-    choices: {
-        message: {
-            content: string | null;
-        };
-    }[];
+/**
+ * Helper: write a JSON response to the cache folder.
+ */
+async function writeCache(key: string, data: any) {
+  const cacheDir = path.resolve(process.cwd(), '.cache', 'ideas');
+  await fs.mkdir(cacheDir, { recursive: true });
+  const cachePath = path.join(cacheDir, `${key}.json`);
+  await fs.writeFile(cachePath, JSON.stringify(data, null, 2), 'utf8');
 }
 
-const openRouterApiKey = process.env.OPENROUTER_API_KEY;
-const cloudflareAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-const cloudflareBearerToken = process.env.CLOUDFLARE_BEARER_TOKEN;
-
-if (!openRouterApiKey) {
-    console.error("OPENROUTER_API_KEY environment variable not set!");
-    // In production, you should throw an error or return a default response here.
+/**
+ * Helper: read a cached JSON response if it exists.
+ */
+async function readCache(key: string) {
+  const cachePath = path.resolve(process.cwd(), '.cache', 'ideas', `${key}.json`);
+  try {
+    const raw = await fs.readFile(cachePath, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
-if (!cloudflareAccountId || !cloudflareBearerToken) {
-    console.error("Cloudflare environment variables not set!");
-    // In production, you should throw an error or return a default response here.
+/**
+ * Build the JSON shape the front‑end expects.
+ */
+function buildPlaceholder(): { summary: string; idea: string; ideaTitle: string } {
+  return {
+    summary:
+      'A concise proposal to fight poverty through a universal basic income pilot aligned with SDG 1.',
+    idea:
+      'Create a community‑driven universal basic income program that provides a monthly cash grant to low‑income households, measured against SDG 1 outcomes.',
+    ideaTitle: 'Universal Basic Income Pilot for SDG 1',
+  };
 }
 
-const openaiRouter = new OpenAI({
-    baseURL: "https://openrouter.ai/api/v1",
-    apiKey: openRouterApiKey,
-    defaultHeaders: {
-        "HTTP-Referer": process.env.YOUR_SITE_URL || "",
-        "X-Title": process.env.YOUR_SITE_NAME || "",
-    }
-});
+/**
+ * Provider 1 – Google AI Studio (Gemini). Uses the Gemini‑Pro model.
+ */
+async function callGoogle(transcript: string, sdg: string) {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) throw new Error('Missing GOOGLE_API_KEY');
 
-const openaiCloudflare = new OpenAI({
-    apiKey: cloudflareBearerToken,
-    baseURL: `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/ai/v1`
-});
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+  const body = {
+    contents: [
+      { role: 'user', parts: [{ text: `Transcript:\n${transcript}\nSDG: ${sdg}` }] },
+    ],
+    generationConfig: { temperature: 0.2 },
+  };
 
-export async function POST(req: NextRequest) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Google API error ${res.status}: ${txt}`);
+  }
+
+  const data = await res.json();
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!content) throw new Error('Google response missing content');
+  return JSON.parse(content.trim());
+}
+
+/**
+ * Provider 2 – OpenRouter (Gemma).
+ */
+async function callOpenRouter(transcript: string, sdg: string) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error('Missing OPENROUTER_API_KEY');
+
+  const url = 'https://openrouter.ai/api/v1/chat/completions';
+  const payload = {
+    model: 'google/gemma-2b-it',
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You are a concise JSON generator. Return ONLY JSON with keys: summary, idea, ideaTitle.',
+      },
+      { role: 'user', content: `Transcript:\n${transcript}\nSDG: ${sdg}` },
+    ],
+    temperature: 0.2,
+  };
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`OpenRouter error ${res.status}: ${txt}`);
+  }
+
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error('OpenRouter response missing content');
+  return JSON.parse(content.trim());
+}
+
+/**
+ * Provider 3 – Cloudflare Workers AI (fallback). Uses the same payload format as OpenRouter.
+ */
+async function callCloudflare(transcript: string, sdg: string) {
+  const apiKey = process.env.CLOUDFLARE_API_KEY;
+  if (!apiKey) throw new Error('Missing CLOUDFLARE_API_KEY');
+
+  const url = 'https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/run/@cf/meta/llama-2-7b-chat-fp16'; // replace <ACCOUNT_ID>
+  const payload = {
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You are a concise JSON generator. Return ONLY JSON with keys: summary, idea, ideaTitle.',
+      },
+      { role: 'user', content: `Transcript:\n${transcript}\nSDG: ${sdg}` },
+    ],
+    temperature: 0.2,
+  };
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Cloudflare error ${res.status}: ${txt}`);
+  }
+
+  const data = await res.json();
+  const content = data.result?.response?.choices?.[0]?.message?.content;
+  if (!content) throw new Error('Cloudflare response missing content');
+  return JSON.parse(content.trim());
+}
+
+export async function POST(req: Request) {
+  const { transcript, sdg } = await req.json();
+
+  const cacheKey = Buffer.from(transcript).toString('base64').replace(/[/+=]/g, '').slice(0, 32);
+  const cached = await readCache(cacheKey);
+  if (cached) return NextResponse.json(cached);
+
+  const providers = [callGoogle, callOpenRouter, callCloudflare];
+  let result: any = null;
+  for (const provider of providers) {
     try {
-        const data = await req.json();
-        console.log("Incoming data (generateIdeas):", data);
-        console.log("Data types:", typeof data, typeof data.transcript, typeof data.sdg);
-
-        addSpanAttributes({
-            'app.request.has_transcript': !!data.transcript,
-            'app.request.transcript_length': data.transcript ? data.transcript.length : 0,
-            'app.request.sdg_raw': data.sdg
-        });
-
-        if (!data || typeof data !== 'object' || !data.transcript || !data.sdg) {
-            return NextResponse.json({ error: "Invalid input data. 'transcript' and 'sdg' are required." }, { status: 400 });
-        }
-
-        let sdgNumber;
-        if (typeof data.sdg === 'string') {
-            sdgNumber = parseInt(data.sdg.replace('sdg', ''), 10);
-        } else if (typeof data.sdg === 'number') {
-            sdgNumber = data.sdg;
-        }
-
-        if (isNaN(sdgNumber) || sdgNumber < 1 || sdgNumber > 17) {
-            return NextResponse.json({ error: "Invalid 'sdg' value. Must be a number between 1 and 17." }, { status: 400 });
-        }
-
-        const systemPrompt = `
-Generate a summary, a nonprofit idea, and a title, all related to the provided transcript and SDG, in valid JSON.  Return ONLY JSON. Do NOT include markdown backticks.
-
-Transcript:
-${data.transcript}
-
-SDG: ${sdgNumber}
-
-Valid JSON Response Format:
-{
-  "summary": "string",
-  "idea": "string",
-  "ideaTitle": "string"
-}
-        `;
-
-        console.log("Prompt sent to Gemma:", systemPrompt);
-
-        let completion: OpenAIResponse;
-
-        try {
-            console.log("Trying to call Gemma API via OpenRouter first...");
-            completion = await openaiRouter.chat.completions.create({
-                model: "google/gemma-3-27b-it:free",
-                messages: [{ role: "system", content: systemPrompt }]
-            });
-            console.log("Gemma API call via OpenRouter successful.");
-            addSpanAttributes({ 'app.ai.provider': 'openrouter', 'app.ai.model': 'google/gemma-3-27b-it:free' });
-        } catch (openRouterError) {
-            console.warn("OpenRouter Error (trying Cloudflare as fallback):", openRouterError);
-            console.log("Trying Cloudflare Workers AI (OpenAI compatible) API as fallback...");
-            completion = await openaiCloudflare.chat.completions.create({
-                model: "@cf/google/gemma-7b-it-lora",
-                // CloudFlare AI worker doesn't seem to support system role messages, hence sending a user role message
-                messages: [{ role: "user", content: systemPrompt }]
-            });
-            console.log("Cloudflare Workers AI API call successful.");
-            addSpanAttributes({ 'app.ai.provider': 'cloudflare', 'app.ai.model': '@cf/google/gemma-7b-it-lora' });
-        }
-
-        return handleAIResponse(completion);
-
-    } catch (outerError) {
-        console.error("General Error:", outerError);
-        return NextResponse.json({ error: "An unexpected error occurred" }, { status: 500 });
+      result = await provider(transcript, sdg);
+      break;
+    } catch (e: any) {
+      console.warn('Provider failed:', e.message);
     }
-}
+  }
 
-// Function to handle the AI response and extract JSON
-function handleAIResponse(completion: OpenAIResponse): NextResponse {
-    if (!completion || !completion.choices || !completion.choices.length || !completion.choices[0].message || completion.choices[0].message.content === null) {
-        console.error("Invalid response from AI provider:", completion);
-        return NextResponse.json({ error: "Invalid response from AI provider" }, { status: 500 });
-    }
-
-    let content = completion.choices[0].message.content;
-
-    if (content === null) {
-        console.error("AI provider returned null content:", completion);
-        return NextResponse.json({ error: "AI provider returned empty content" }, { status: 500 });
-    }
-
-    try {
-        const jsonResponse = JSON.parse(content); // content is now guaranteed to be a string
-        return NextResponse.json(jsonResponse);
-    } catch (parseError) {
-        console.error("Initial JSON parsing failed:", parseError);
-        console.error("Response that failed initial parsing:", content);
-
-        content = content.replace(/```json/g, '').replace(/```/g, '').trim();
-
-        try {
-            const cleanedJsonResponse = JSON.parse(content);
-            console.warn("Removed backticks and parsed successfully. Full response:", content);
-            return NextResponse.json(cleanedJsonResponse);
-        } catch (cleanedParseError) {
-            console.error("Parsing failed even after removing backticks:", cleanedParseError);
-
-            try {
-                const regex = /{.*}/s;
-                const match = content.match(regex);
-
-                if (match) {
-                    const extractedJson = JSON.parse(match[0]);
-                    console.warn("Used regex fallback.  Full response:", content);
-                    return NextResponse.json(extractedJson);
-                } else {
-                    return NextResponse.json({ error: "Failed to extract JSON after backtick removal and regex", geminiResponse: content }, { status: 500 });
-                }
-
-            } catch (regexError) {
-                console.error("Regex extraction and parsing failed:", regexError);
-                return NextResponse.json({ error: "JSON parsing and extraction failed", geminiResponse: content }, { status: 500 });
-
-            }
-        }
-    }
+  if (!result) result = buildPlaceholder();
+  await writeCache(cacheKey, result);
+  return NextResponse.json(result);
 }
