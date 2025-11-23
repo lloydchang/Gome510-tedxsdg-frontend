@@ -47,11 +47,28 @@ async function callGoogle(transcript: string, sdg: string) {
   if (!apiKey) throw new Error('Missing GEMINI_API_KEY');
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
+  const prompt = `Based on the following TED talk transcript and SDG, generate a nonprofit idea.
+
+Transcript:
+${transcript}
+
+SDG: ${sdg}
+
+Return ONLY valid JSON with this exact structure (no markdown, no backticks):
+{
+  "summary": "A brief one-sentence summary of the idea",
+  "idea": "A detailed description of the nonprofit idea",
+  "ideaTitle": "A catchy title for the nonprofit"
+}`;
+
   const body = {
     contents: [
-      { role: 'user', parts: [{ text: `Transcript:\n${transcript}\nSDG: ${sdg}` }] },
+      { role: 'user', parts: [{ text: prompt }] },
     ],
-    generationConfig: { temperature: 0.2 },
+    generationConfig: {
+      temperature: 0.2,
+      responseMimeType: 'application/json'
+    },
   };
 
   const res = await fetch(url, {
@@ -157,18 +174,36 @@ export async function POST(req: Request) {
 
   const cacheKey = Buffer.from(transcript).toString('base64').replace(/[/+=]/g, '').slice(0, 32);
   const cached = await readCache(cacheKey);
-  if (cached) return NextResponse.json(cached);
+  if (cached) {
+    console.log('Cache hit for generateIdeas, returning cached result');
+    return NextResponse.json(cached);
+  }
+
+  console.log('No cache found, attempting to generate new idea...');
 
   // Build providers list based on available credentials
   const providers: Array<(transcript: string, sdg: string) => Promise<IdeaResult>> = [];
-  if (process.env.GEMINI_API_KEY) providers.push(callGoogle);
-  if (process.env.OPENROUTER_API_KEY) providers.push(callOpenRouter);
-  if (process.env.CLOUDFLARE_API_KEY) providers.push(callCloudflare);
+  if (process.env.GEMINI_API_KEY) {
+    console.log('GEMINI_API_KEY found, adding Google provider');
+    providers.push(callGoogle);
+  }
+  if (process.env.OPENROUTER_API_KEY) {
+    console.log('OPENROUTER_API_KEY found, adding OpenRouter provider');
+    providers.push(callOpenRouter);
+  }
+  if (process.env.CLOUDFLARE_API_KEY) {
+    console.log('CLOUDFLARE_API_KEY found, adding Cloudflare provider');
+    providers.push(callCloudflare);
+  }
+
+  console.log(`Total providers available: ${providers.length}`);
 
   let result: IdeaResult | null = null;
   for (const provider of providers) {
     try {
+      console.log('Attempting provider...');
       result = await provider(transcript, sdg);
+      console.log('Provider succeeded, result:', result);
       break;
     } catch (e: unknown) {
       if (e instanceof Error) {
@@ -179,7 +214,11 @@ export async function POST(req: Request) {
     }
   }
 
-  if (!result) result = buildPlaceholder();
+  if (!result) {
+    console.warn('All providers failed, using placeholder');
+    result = buildPlaceholder();
+  }
+
   await writeCache(cacheKey, result);
   return NextResponse.json(result);
 }
