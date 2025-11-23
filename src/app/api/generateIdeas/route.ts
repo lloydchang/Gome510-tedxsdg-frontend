@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
+import { withSpan } from '@/lib/observability';
 
 interface IdeaResult { summary: string; idea: string; ideaTitle: string; }
 
@@ -177,59 +178,77 @@ async function callCloudflare(transcript: string, sdg: string) {
 }
 
 export async function POST(req: Request) {
-  const { transcript, sdg } = await req.json();
+  return withSpan('api.generateIdeas', async (span) => {
+    const { transcript, sdg } = await req.json();
 
-  const cacheKey = Buffer.from(transcript).toString('base64').replace(/[/+=]/g, '').slice(0, 32);
-  const cached = await readCache(cacheKey);
-  if (cached) {
-    console.log('Cache hit for generateIdeas, returning cached result');
-    return NextResponse.json(cached);
-  }
+    span.setAttributes({
+      'app.request.transcript_length': transcript?.length,
+      'app.request.sdg': sdg,
+    });
 
-  console.log('No cache found, attempting to generate new idea...');
+    const cacheKey = Buffer.from(transcript).toString('base64').replace(/[/+=]/g, '').slice(0, 32);
+    const cached = await readCache(cacheKey);
+    if (cached) {
+      console.log('Cache hit for generateIdeas, returning cached result');
+      span.setAttribute('app.cache.hit', true);
+      return NextResponse.json(cached);
+    }
 
-  // Build providers list based on available credentials
-  const providers: Array<(transcript: string, sdg: string) => Promise<IdeaResult>> = [];
-  if (process.env.GEMINI_API_KEY) {
-    console.log('GEMINI_API_KEY found, adding Google provider');
-    providers.push(callGoogle);
-  }
-  if (process.env.OPENROUTER_API_KEY) {
-    console.log('OPENROUTER_API_KEY found, adding OpenRouter provider');
-    providers.push(callOpenRouter);
-  }
-  if (process.env.CLOUDFLARE_API_KEY) {
-    console.log('CLOUDFLARE_API_KEY found, adding Cloudflare provider');
-    providers.push(callCloudflare);
-  }
+    span.setAttribute('app.cache.hit', false);
+    console.log('No cache found, attempting to generate new idea...');
 
-  console.log(`Total providers available: ${providers.length}`);
+    // Build providers list based on available credentials
+    const providers: Array<{ name: string; fn: (transcript: string, sdg: string) => Promise<IdeaResult> }> = [];
+    if (process.env.GEMINI_API_KEY) {
+      console.log('GEMINI_API_KEY found, adding Google provider');
+      providers.push({ name: 'google', fn: callGoogle });
+    }
+    if (process.env.OPENROUTER_API_KEY) {
+      console.log('OPENROUTER_API_KEY found, adding OpenRouter provider');
+      providers.push({ name: 'openrouter', fn: callOpenRouter });
+    }
+    if (process.env.CLOUDFLARE_API_KEY) {
+      console.log('CLOUDFLARE_API_KEY found, adding Cloudflare provider');
+      providers.push({ name: 'cloudflare', fn: callCloudflare });
+    }
 
-  let result: IdeaResult | null = null;
-  for (const provider of providers) {
-    try {
-      console.log('Attempting provider...');
-      result = await provider(transcript, sdg);
-      console.log('Provider succeeded, result:', result);
-      break;
-    } catch (e: unknown) {
-      if (e instanceof Error) {
-        console.warn('Provider failed:', e.message);
-      } else {
-        console.warn('Provider failed:', e);
+    console.log(`Total providers available: ${providers.length}`);
+    span.setAttribute('app.providers.count', providers.length);
+
+    let result: IdeaResult | null = null;
+    for (const { name, fn } of providers) {
+      try {
+        console.log(`Attempting provider: ${name}...`);
+        result = await withSpan(`api.generateIdeas.provider.${name}`, async (providerSpan) => {
+          providerSpan.setAttribute('app.provider.name', name);
+          const res = await fn(transcript, sdg);
+          providerSpan.setAttribute('app.provider.success', true);
+          return res;
+        });
+        console.log('Provider succeeded, result:', result);
+        span.setAttribute('app.result.provider', name);
+        break;
+      } catch (e: unknown) {
+        // withSpan records the exception, we just need to log and continue
+        if (e instanceof Error) {
+          console.warn(`Provider ${name} failed:`, e.message);
+        } else {
+          console.warn(`Provider ${name} failed:`, e);
+        }
       }
     }
-  }
 
-  if (!result) {
-    console.warn('All providers failed, using placeholder');
-    result = buildPlaceholder();
-  }
+    if (!result) {
+      console.warn('All providers failed, using placeholder');
+      span.setAttribute('app.result.fallback', true);
+      result = buildPlaceholder();
+    }
 
-  try {
-    await writeCache(cacheKey, result);
-  } catch (e) {
-    console.warn('Failed to write to cache:', e);
-  }
-  return NextResponse.json(result);
+    try {
+      await writeCache(cacheKey, result);
+    } catch (e) {
+      console.warn('Failed to write to cache:', e);
+    }
+    return NextResponse.json(result);
+  });
 }

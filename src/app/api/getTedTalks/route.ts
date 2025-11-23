@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { NextResponse, NextRequest } from "next/server";
+import { withSpan } from '@/lib/observability';
 
 interface Talk {
     title: string; // Title of the TED Talk
@@ -21,19 +22,33 @@ interface Result {
 }
 
 export async function POST(req: NextRequest) {
+    return withSpan('api.getTedTalks', async (span) => {
+        const query = await req.json();
 
-    const query = await req.json();
-    const response = await axios.get(`https://tedxsdg-search-backend.vercel.app/api/search?query=${encodeURIComponent(query.text)}`);
+        span.setAttributes({
+            'app.request.query': query.text,
+            'app.request.query_length': query.text?.length || 0,
+        });
 
-    if (response.status !== 200) throw new Error(response.statusText);
+        const response = await withSpan('api.getTedTalks.search_backend', async (subSpan) => {
+            subSpan.setAttribute('app.backend.url', 'tedxsdg-search-backend.vercel.app');
+            const res = await axios.get(`https://tedxsdg-search-backend.vercel.app/api/search?query=${encodeURIComponent(query.text)}`);
+            subSpan.setAttribute('app.backend.status', res.status);
+            return res;
+        });
 
-    const data: Talk[] = response.data.results.map((result: Result) => ({
-        presenterDisplayName: result.document.presenterDisplayName || '',
-        title: result.document.slug.replace(/_/g, ' ') || '',
-        url: `https://www.ted.com/talks/${result.document.slug}`,
-        sdg_tags: result.document.sdg_tags || [],
-        transcript: result.document.transcript || '',
-    }));
+        if (response.status !== 200) throw new Error(response.statusText);
 
-    return NextResponse.json(data);
+        const data: Talk[] = response.data.results.map((result: Result) => ({
+            presenterDisplayName: result.document.presenterDisplayName || '',
+            title: result.document.slug.replace(/_/g, ' ') || '',
+            url: `https://www.ted.com/talks/${result.document.slug}`,
+            sdg_tags: result.document.sdg_tags || [],
+            transcript: result.document.transcript || '',
+        }));
+
+        span.setAttribute('app.result.count', data.length);
+
+        return NextResponse.json(data);
+    });
 }
