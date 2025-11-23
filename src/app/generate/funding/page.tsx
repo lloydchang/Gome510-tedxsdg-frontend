@@ -67,7 +67,7 @@ export default function FundingPage() {
           console.debug("Grant Info Request Body:", requestPayload.body);
 
           const grantResponse = await fetch(
-            "https://budhrajaankita-ted.vercel.app/grantInfo",
+            "http://127.0.0.1:8001/grantInfo",
             requestPayload
           );
 
@@ -91,7 +91,7 @@ export default function FundingPage() {
           console.debug("Grant Proposal Request Body:", requestPayload.body);
 
           const grantProposalResponse = await fetch(
-            "https://budhrajaankita-ted.vercel.app/getGrantProposal",
+            "http://127.0.0.1:8001/getGrantProposal",
             requestPayload
           );
 
@@ -115,7 +115,7 @@ export default function FundingPage() {
           console.debug("Investors Request Body:", requestPayload.body);
 
           const investorResponse = await fetch(
-            "https://budhrajaankita-ted.vercel.app/investors",
+            "http://127.0.0.1:8001/investors",
             requestPayload
           );
 
@@ -136,7 +136,7 @@ export default function FundingPage() {
 
           // Fetch pitch 
           // const pitchTextResponse = await fetch(
-          //   "https://budhrajaankita-ted.vercel.app/generatePitchText",
+          //   "http://127.0.0.1:8001/generatePitchText",
           //   {
           //     method: "POST",
           //     headers: { "Content-Type": "application/json" },

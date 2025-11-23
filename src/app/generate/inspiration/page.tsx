@@ -176,7 +176,7 @@ export default function InspirationPage() {
     };
     console.debug('API Request (business_plan_roadmap):', request4);
     const planningResponse = await fetch(
-      'https://budhrajaankita-ted.vercel.app/business_plan_roadmap',
+      'http://127.0.0.1:8001/business_plan_roadmap',
       request4
     );
     console.debug(

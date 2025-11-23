@@ -39,7 +39,7 @@ export default function PlanningPage() {
           const requestMethod = "POST";
 
           const grantResponse = await fetch(
-            "https://budhrajaankita-ted.vercel.app/business_plan_roadmap",
+            "http://127.0.0.1:8001/business_plan_roadmap",
             {
               method: requestMethod, // Use the stored method
               headers: { "Content-Type": "application/json" },
