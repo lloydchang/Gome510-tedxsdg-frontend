@@ -168,11 +168,23 @@ export default function InspirationPage() {
     const data = await response.json();
     console.debug('API Response (generateIdeaJSON) Data:', data);
 
+    // Update selectedIdea in localStorage with the refined idea from the API
+    if (data && data.idea) {
+      const refinedIdea: Idea = {
+        idea: data.idea.mission || data.idea.description || newIdea.idea, // Fallback to initial if missing
+        ideaTitle: data.idea.name || newIdea.ideaTitle,
+        sdg: newIdea.sdg,
+        url: newIdea.url
+      };
+      localStorage.setItem('selectedIdea', JSON.stringify(refinedIdea));
+    }
+
     // TODO --- send JSON to planning api endpoint
+    // Use the data returned from generateIdeaJSON which contains the full structured idea
     const request4 = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(data), // 'data' is the response from generateIdeaJSON
     };
     console.debug('API Request (business_plan_roadmap):', request4);
     try {
