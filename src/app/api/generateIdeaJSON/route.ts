@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
             try {
                 console.log("Calling Gemini via Google AI Studio...");
                 completion = await openaiGoogle.chat.completions.create({
-                    model: "gemini-1.5-pro",
+                    model: "gemini-2.5-flash-lite",
                     messages: [
                         { role: "system", content: systemPrompt },
                         { role: "user", content: data }
