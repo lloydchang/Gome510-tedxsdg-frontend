@@ -67,7 +67,7 @@ export default function FundingPage() {
           console.debug("Grant Info Request Body:", requestPayload.body);
 
           const grantResponse = await fetch(
-            "http://127.0.0.1:8001/grantInfo",
+            `${process.env.INSPIRATION_PLANNING_FUNDING_API_BASE}/grantInfo`,
             requestPayload
           );
 
@@ -91,7 +91,7 @@ export default function FundingPage() {
           console.debug("Grant Proposal Request Body:", requestPayload.body);
 
           const grantProposalResponse = await fetch(
-            "http://127.0.0.1:8001/getGrantProposal",
+            `${process.env.INSPIRATION_PLANNING_FUNDING_API_BASE}/getGrantProposal`,
             requestPayload
           );
 
@@ -115,7 +115,7 @@ export default function FundingPage() {
           console.debug("Investors Request Body:", requestPayload.body);
 
           const investorResponse = await fetch(
-            "http://127.0.0.1:8001/investors",
+            `${process.env.INSPIRATION_PLANNING_FUNDING_API_BASE}/investors`,
             requestPayload
           );
 
@@ -136,7 +136,7 @@ export default function FundingPage() {
 
           // Fetch pitch 
           // const pitchTextResponse = await fetch(
-          //   "http://127.0.0.1:8001/generatePitchText",
+          //   "${process.env.INSPIRATION_PLANNING_FUNDING_API_BASE}/generatePitchText",
           //   {
           //     method: "POST",
           //     headers: { "Content-Type": "application/json" },

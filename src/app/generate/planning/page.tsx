@@ -39,7 +39,7 @@ export default function PlanningPage() {
           const requestMethod = "POST";
 
           const grantResponse = await fetch(
-            "http://127.0.0.1:8001/business_plan_roadmap",
+            `${process.env.INSPIRATION_PLANNING_FUNDING_API_BASE}/business_plan_roadmap`,
             {
               method: requestMethod, // Use the stored method
               headers: { "Content-Type": "application/json" },

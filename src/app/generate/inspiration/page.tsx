@@ -177,7 +177,7 @@ export default function InspirationPage() {
     console.debug('API Request (business_plan_roadmap):', request4);
     try {
       const planningResponse = await fetch(
-        'http://127.0.0.1:8001/business_plan_roadmap',
+        `${process.env.INSPIRATION_PLANNING_FUNDING_API_BASE}/business_plan_roadmap`,
         request4
       );
       console.debug(
