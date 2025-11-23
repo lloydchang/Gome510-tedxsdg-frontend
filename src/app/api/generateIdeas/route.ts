@@ -1,13 +1,19 @@
-// src/app/api/generateIdeas/route.ts
 import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
+import os from 'os';
+
 interface IdeaResult { summary: string; idea: string; ideaTitle: string; }
+
+function getCacheDir() {
+  return path.join(os.tmpdir(), 'tedxsdg_cache', 'ideas');
+}
+
 /**
  * Helper: write a JSON response to the cache folder.
  */
 async function writeCache(key: string, data: unknown) {
-  const cacheDir = path.resolve(process.cwd(), '.cache', 'ideas');
+  const cacheDir = getCacheDir();
   await fs.mkdir(cacheDir, { recursive: true });
   const cachePath = path.join(cacheDir, `${key}.json`);
   await fs.writeFile(cachePath, JSON.stringify(data, null, 2), 'utf8');
@@ -17,7 +23,8 @@ async function writeCache(key: string, data: unknown) {
  * Helper: read a cached JSON response if it exists.
  */
 async function readCache(key: string) {
-  const cachePath = path.resolve(process.cwd(), '.cache', 'ideas', `${key}.json`);
+  const cacheDir = getCacheDir();
+  const cachePath = path.join(cacheDir, `${key}.json`);
   try {
     const raw = await fs.readFile(cachePath, 'utf8');
     return JSON.parse(raw);
@@ -219,6 +226,10 @@ export async function POST(req: Request) {
     result = buildPlaceholder();
   }
 
-  await writeCache(cacheKey, result);
+  try {
+    await writeCache(cacheKey, result);
+  } catch (e) {
+    console.warn('Failed to write to cache:', e);
+  }
   return NextResponse.json(result);
 }
