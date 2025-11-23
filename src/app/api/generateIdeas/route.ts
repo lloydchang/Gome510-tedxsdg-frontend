@@ -2,11 +2,11 @@
 import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
-
+interface IdeaResult { summary: string; idea: string; ideaTitle: string; }
 /**
  * Helper: write a JSON response to the cache folder.
  */
-async function writeCache(key: string, data: any) {
+async function writeCache(key: string, data: unknown) {
   const cacheDir = path.resolve(process.cwd(), '.cache', 'ideas');
   await fs.mkdir(cacheDir, { recursive: true });
   const cachePath = path.join(cacheDir, `${key}.json`);
@@ -80,7 +80,7 @@ async function callOpenRouter(transcript: string, sdg: string) {
 
   const url = 'https://openrouter.ai/api/v1/chat/completions';
   const payload = {
-    model: 'google/gemma-2b-it',
+    model: 'google/gemma-3-27b-it:free', // updated to a valid model
     messages: [
       {
         role: 'system',
@@ -159,14 +159,23 @@ export async function POST(req: Request) {
   const cached = await readCache(cacheKey);
   if (cached) return NextResponse.json(cached);
 
-  const providers = [callGoogle, callOpenRouter, callCloudflare];
-  let result: any = null;
+  // Build providers list based on available credentials
+  const providers: Array<(transcript: string, sdg: string) => Promise<IdeaResult>> = [];
+  if (process.env.GOOGLE_API_KEY) providers.push(callGoogle);
+  if (process.env.OPENROUTER_API_KEY) providers.push(callOpenRouter);
+  if (process.env.CLOUDFLARE_API_KEY) providers.push(callCloudflare);
+
+  let result: IdeaResult | null = null;
   for (const provider of providers) {
     try {
       result = await provider(transcript, sdg);
       break;
-    } catch (e: any) {
-      console.warn('Provider failed:', e.message);
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        console.warn('Provider failed:', e.message);
+      } else {
+        console.warn('Provider failed:', e);
+      }
     }
   }
 
