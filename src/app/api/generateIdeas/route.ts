@@ -43,8 +43,8 @@ function buildPlaceholder(): { summary: string; idea: string; ideaTitle: string 
  * Provider 1 – Google AI Studio (Gemini). Uses the Gemini‑Pro model.
  */
 async function callGoogle(transcript: string, sdg: string) {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey) throw new Error('Missing GOOGLE_API_KEY');
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('Missing GEMINI_API_KEY');
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
   const body = {
@@ -161,7 +161,7 @@ export async function POST(req: Request) {
 
   // Build providers list based on available credentials
   const providers: Array<(transcript: string, sdg: string) => Promise<IdeaResult>> = [];
-  if (process.env.GOOGLE_API_KEY) providers.push(callGoogle);
+  if (process.env.GEMINI_API_KEY) providers.push(callGoogle);
   if (process.env.OPENROUTER_API_KEY) providers.push(callOpenRouter);
   if (process.env.CLOUDFLARE_API_KEY) providers.push(callCloudflare);
 

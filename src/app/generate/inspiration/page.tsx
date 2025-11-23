@@ -175,17 +175,26 @@ export default function InspirationPage() {
       body: JSON.stringify(data),
     };
     console.debug('API Request (business_plan_roadmap):', request4);
-    const planningResponse = await fetch(
-      'http://127.0.0.1:8001/business_plan_roadmap',
-      request4
-    );
-    console.debug(
-      'API Response (business_plan_roadmap) Status:',
-      planningResponse.status
-    );
-    const planningData = await planningResponse.json();
-    console.debug('API Response (business_plan_roadmap) Data:', planningData);
-    localStorage.setItem('planningResults', JSON.stringify(planningData));
+    try {
+      const planningResponse = await fetch(
+        'http://127.0.0.1:8001/business_plan_roadmap',
+        request4
+      );
+      console.debug(
+        'API Response (business_plan_roadmap) Status:',
+        planningResponse.status
+      );
+      if (planningResponse.ok) {
+        const planningData = await planningResponse.json();
+        console.debug('API Response (business_plan_roadmap) Data:', planningData);
+        localStorage.setItem('planningResults', JSON.stringify(planningData));
+      } else {
+        console.warn('Backend returned error status:', planningResponse.status);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch business plan roadmap from backend (is it running?):', error);
+      // Fallback or proceed without planning results
+    }
 
     // Navigate to the next page
     router.push('/generate/planning');

@@ -7,18 +7,19 @@ interface AIResponse {
     choices: { message: { content: string | null } }[];
 }
 
-// Define a minimal type for the AI completion response we care about
-interface Completion {
-    choices: { message: { content: string } }[];
-}
 
+
+const geminiApikey = process.env.GEMINI_API_KEY;
 const openRouterApiKey = process.env.OPENROUTER_API_KEY;
 const cloudflareAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
 const cloudflareBearerToken = process.env.CLOUDFLARE_BEARER_TOKEN;
 
 // Log missing credentials but do not abort execution; we will fall back to placeholder data if needed.
+if (!geminiApikey) {
+    console.warn("GEMINI_API_KEY not set – Google AI Studio will be unavailable.");
+}
 if (!openRouterApiKey) {
-    console.warn("OPENROUTER_API_KEY not set – OpenRouter will be unavailable.");
+    console.warn("OPENROUTER_API_KEY not set – OpenRouter fallback will be unavailable.");
 }
 if (!cloudflareAccountId || !cloudflareBearerToken) {
     console.warn("Cloudflare credentials not set – Cloudflare fallback will be unavailable.");
@@ -29,10 +30,6 @@ if (openRouterApiKey) {
     openaiRouter = new OpenAI({
         baseURL: "https://openrouter.ai/api/v1",
         apiKey: openRouterApiKey,
-        defaultHeaders: {
-            "HTTP-Referer": process.env.YOUR_SITE_URL || "",
-            "X-Title": process.env.YOUR_SITE_NAME || "",
-        },
     });
 }
 
@@ -41,6 +38,14 @@ if (cloudflareAccountId && cloudflareBearerToken) {
     openaiCloudflare = new OpenAI({
         apiKey: cloudflareBearerToken,
         baseURL: `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/ai/v1`,
+    });
+}
+
+let openaiGoogle: OpenAI | null = null;
+if (geminiApikey) {
+    openaiGoogle = new OpenAI({
+        apiKey: geminiApikey,
+        baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
     });
 }
 
@@ -72,31 +77,48 @@ export async function POST(req: NextRequest) {
 
         let completion: AIResponse | null = null;
 
-        // Try OpenRouter if credentials are present
-        if (openaiRouter) {
+        // Try Gemini via Google AI Studio first
+        if (openaiGoogle) {
+            try {
+                console.log("Calling Gemini via Google AI Studio...");
+                completion = await openaiGoogle.chat.completions.create({
+                    model: "gemini-2.5-flash-lite",
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { role: "user", content: data }
+                    ],
+                }) as unknown as AIResponse;
+                console.log("Google AI Studio call successful.");
+            } catch (googleError) {
+                console.warn("Google AI Studio error:", googleError);
+            }
+        }
+
+        // If Google failed or not configured, try OpenRouter
+        if (!completion && openaiRouter) {
             try {
                 console.log("Calling Gemma via OpenRouter...");
                 completion = await openaiRouter.chat.completions.create({
-                    model: "google/gemma-3-27b-it:free",
+                    model: "google/gemini-2.0-flash-exp:free",
                     messages: [
                         { role: "system", content: systemPrompt },
                         { role: "user", content: data },
                     ],
-                });
+                }) as unknown as AIResponse;
                 console.log("OpenRouter call successful.");
             } catch (openRouterError) {
                 console.warn("OpenRouter error:", openRouterError);
             }
         }
 
-        // If OpenRouter failed or not configured, try Cloudflare fallback
+        // If previous providers failed, try Cloudflare fallback
         if (!completion && openaiCloudflare) {
             try {
-                console.log("Calling Cloudflare fallback...");
+                console.log("Calling Gemma via Cloudflare fallback...");
                 completion = await openaiCloudflare.chat.completions.create({
                     model: "@cf/google/gemma-7b-it-lora",
                     messages: [{ role: "user", content: systemPrompt + "\n\n" + data }],
-                });
+                }) as unknown as AIResponse;
                 console.log("Cloudflare call successful.");
             } catch (cloudflareError) {
                 console.warn("Cloudflare error:", cloudflareError);
@@ -105,7 +127,7 @@ export async function POST(req: NextRequest) {
 
         // If still no completion, return placeholder data
         if (!completion) {
-            console.warn("Both providers unavailable – returning placeholder data.");
+            console.warn("All providers unavailable – returning placeholder data.");
             const placeholder: IdeaResult = {
                 summary: "A concise proposal to fight poverty through a universal basic income pilot aligned with SDG 1.",
                 idea: "Create a community‑driven universal basic income program that provides a monthly cash grant to low‑income households, measured against SDG 1 outcomes.",
