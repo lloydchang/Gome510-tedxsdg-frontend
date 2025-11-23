@@ -189,7 +189,7 @@ export default function InspirationPage() {
     console.debug('API Request (business_plan_roadmap):', request4);
     try {
       const planningResponse = await fetch(
-        `${process.env.INSPIRATION_PLANNING_FUNDING_API_BASE}/business_plan_roadmap`,
+        `${process.env.NEXT_PUBLIC_INSPIRATION_PLANNING_FUNDING_API_BASE}/business_plan_roadmap`,
         request4
       );
       console.debug(

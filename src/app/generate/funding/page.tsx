@@ -67,7 +67,7 @@ export default function FundingPage() {
           console.debug("Grant Info Request Body:", requestPayload.body);
 
           const grantResponse = await fetch(
-            `${process.env.INSPIRATION_PLANNING_FUNDING_API_BASE}/grantInfo`,
+            `${process.env.NEXT_PUBLIC_INSPIRATION_PLANNING_FUNDING_API_BASE}/grantInfo`,
             requestPayload
           );
 
@@ -91,7 +91,7 @@ export default function FundingPage() {
           console.debug("Grant Proposal Request Body:", requestPayload.body);
 
           const grantProposalResponse = await fetch(
-            `${process.env.INSPIRATION_PLANNING_FUNDING_API_BASE}/getGrantProposal`,
+            `${process.env.NEXT_PUBLIC_INSPIRATION_PLANNING_FUNDING_API_BASE}/getGrantProposal`,
             requestPayload
           );
 
@@ -115,7 +115,7 @@ export default function FundingPage() {
           console.debug("Investors Request Body:", requestPayload.body);
 
           const investorResponse = await fetch(
-            `${process.env.INSPIRATION_PLANNING_FUNDING_API_BASE}/investors`,
+            `${process.env.NEXT_PUBLIC_INSPIRATION_PLANNING_FUNDING_API_BASE}/investors`,
             requestPayload
           );
 
